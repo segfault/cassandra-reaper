@@ -25,7 +25,6 @@ import java.util.Set;
 
 import javax.ws.rs.core.Response;
 
-import cucumber.api.PendingException;
 import cucumber.api.java.Before;
 import cucumber.api.java.en.And;
 import cucumber.api.java.en.Given;
@@ -170,25 +169,6 @@ public class BasicSteps {
                   Optional.of("\"" + clusterName + "\""));
   }
 
-  @And("^a second daily repair schedule is added for \"([^\"]*)\" and keyspace \"([^\"]*)\"$")
-  public void a_second_daily_repair_schedule_is_added_for_and_keyspace(String clusterName,
-                                                                       String keyspace)
-      throws Throwable {
-    LOG.info("add second daily repair schedule: {}/{}", clusterName, keyspace);
-    Map<String, String> params = Maps.newHashMap();
-    params.put("clusterName", clusterName);
-    params.put("keyspace", keyspace);
-    params.put("owner", TestContext.TEST_USER);
-    params.put("intensity", "0.8");
-    params.put("scheduleDaysBetween", "1");
-    ClientResponse response =
-        ReaperTestJettyRunner.callReaper("POST", "/repair_schedule", Optional.of(params));
-    assertEquals(Response.Status.CREATED.getStatusCode(), response.getStatus());
-    String responseData = response.getEntity(String.class);
-    RepairScheduleStatus schedule = SimpleReaperClient.parseRepairScheduleStatusJSON(responseData);
-    TestContext.LAST_MODIFIED_ID = schedule.getId();
-  }
-
   @And("^reaper has (\\d+) scheduled repairs for cluster called \"([^\"]*)\"$")
   public void reaper_has_scheduled_repairs_for_cluster_called(int repairAmount,
                                                               String clusterName)
@@ -196,22 +176,6 @@ public class BasicSteps {
     List<RepairScheduleStatus> schedules = client.getRepairSchedulesForCluster(clusterName);
     LOG.info("Got " + schedules.size() + " schedules");
     assertEquals(repairAmount, schedules.size());
-  }
-
-  @When("^the last added schedule is deleted for cluster called \"([^\"]*)\"$")
-  public void the_last_added_schedule_is_deleted_for_cluster_called(String clusterName)
-      throws Throwable {
-    LOG.info("pause last added repair schedule with id: {}", TestContext.LAST_MODIFIED_ID);
-    Map<String, String> params = Maps.newHashMap();
-    params.put("state", "paused");
-    callAndExpect("PUT", "/repair_schedule/" + TestContext.LAST_MODIFIED_ID,
-                  Optional.of(params), Response.Status.OK, Optional.of("\"" + clusterName + "\""));
-
-    LOG.info("delete last added repair schedule with id: {}", TestContext.LAST_MODIFIED_ID);
-    params.clear();
-    params.put("owner", TestContext.TEST_USER);
-    callAndExpect("DELETE", "/repair_schedule/" + TestContext.LAST_MODIFIED_ID,
-                  Optional.of(params), Response.Status.OK, Optional.of("\"" + clusterName + "\""));
   }
 
   @And("^deleting cluster called \"([^\"]*)\" fails$")
@@ -260,13 +224,4 @@ public class BasicSteps {
     assertEquals(runAmount, runs.size());
   }
 
-  @When("^the last added repair run is deleted for cluster called \"([^\"]*)\"$")
-  public void the_last_added_repair_run_is_deleted_for_cluster_called(String clusterName)
-      throws Throwable {
-    LOG.info("delete last added repair run with id: {}", TestContext.LAST_MODIFIED_ID);
-    Map<String, String> params = Maps.newHashMap();
-    params.put("owner", TestContext.TEST_USER);
-    callAndExpect("DELETE", "/repair_run/" + TestContext.LAST_MODIFIED_ID,
-                  Optional.of(params), Response.Status.OK, Optional.of("\"" + clusterName + "\""));
-  }
 }

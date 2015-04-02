@@ -41,7 +41,6 @@ import java.util.List;
 import java.util.Set;
 
 import javax.annotation.Nullable;
-import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
@@ -265,6 +264,8 @@ public class RepairRunResource {
       return pauseRun(repairRun.get(), repairUnit.get(), segmentsRepaired);
     } else if (isResuming(oldState, newState)) {
       return resumeRun(repairRun.get(), repairUnit.get(), segmentsRepaired);
+    } else if (isAborting(oldState, newState)) {
+      return abortRun(repairRun.get(), repairUnit.get(), segmentsRepaired);
     } else {
       String errMsg = String.format("Transition %s->%s not supported.", oldState.toString(),
                                     newState.toString());
@@ -285,6 +286,10 @@ public class RepairRunResource {
     return oldState == RepairRun.RunState.PAUSED && newState == RepairRun.RunState.RUNNING;
   }
 
+  private boolean isAborting(RepairRun.RunState oldState, RepairRun.RunState newState) {
+    return oldState != RepairRun.RunState.ERROR && newState == RepairRun.RunState.ABORTED;
+  }
+
   private Response startRun(RepairRun repairRun, RepairUnit repairUnit, int segmentsRepaired) {
     LOG.info("Starting run {}", repairRun.getId());
     RepairRun newRun = context.repairManager.startRepairRun(context, repairRun);
@@ -302,6 +307,12 @@ public class RepairRunResource {
   private Response resumeRun(RepairRun repairRun, RepairUnit repairUnit, int segmentsRepaired) {
     LOG.info("Resuming run {}", repairRun.getId());
     RepairRun newRun = context.repairManager.startRepairRun(context, repairRun);
+    return Response.ok().entity(new RepairRunStatus(newRun, repairUnit, segmentsRepaired)).build();
+  }
+
+  private Response abortRun(RepairRun repairRun, RepairUnit repairUnit, int segmentsRepaired) {
+    LOG.info("Aborting run {}", repairRun.getId());
+    RepairRun newRun = context.repairManager.abortRepairRun(context, repairRun);
     return Response.ok().entity(new RepairRunStatus(newRun, repairUnit, segmentsRepaired)).build();
   }
 
@@ -421,60 +432,6 @@ public class RepairRunResource {
     } else {
       return Sets.newHashSet();
     }
-  }
-
-  /**
-   * Delete a RepairRun object with given id.
-   *
-   * Repair run can be only deleted when it is not running.
-   * When Repair run is deleted, all the related RepairSegment instances will be deleted also.
-   *
-   * @param runId  The id for the RepairRun instance to delete.
-   * @param owner  The assigned owner of the deleted resource. Must match the stored one.
-   * @return The deleted RepairRun instance, with state overwritten to string "DELETED".
-   */
-  @DELETE
-  @Path("/{id}")
-  public Response deleteRepairRun(@PathParam("id") Long runId,
-                                  @QueryParam("owner") Optional<String> owner) {
-    LOG.info("delete repair run called with runId: {}, and owner: {}", runId, owner);
-    if (!owner.isPresent()) {
-      return Response.status(Response.Status.BAD_REQUEST).entity(
-          "required query parameter \"owner\" is missing").build();
-    }
-    Optional<RepairRun> runToDelete = context.storage.getRepairRun(runId);
-    if (!runToDelete.isPresent()) {
-      return Response.status(Response.Status.NOT_FOUND).entity(
-          "Repair run with id \"" + runId + "\" not found").build();
-    }
-    if (runToDelete.get().getRunState() == RepairRun.RunState.RUNNING) {
-      return Response.status(Response.Status.FORBIDDEN).entity(
-          "Repair run with id \"" + runId
-          + "\" is currently running, and must be stopped before deleting").build();
-    }
-    if (!runToDelete.get().getOwner().equalsIgnoreCase(owner.get())) {
-      return Response.status(Response.Status.FORBIDDEN).entity(
-          "Repair run with id \"" + runId + "\" is not owned by the user you defined: "
-          + owner.get()).build();
-    }
-    if (context.storage.getSegmentAmountForRepairRunWithState(runId, RepairSegment.State.RUNNING) > 0) {
-      return Response.status(Response.Status.FORBIDDEN).entity(
-          "Repair run with id \"" + runId
-          + "\" has a running segment, which must be waited to finish before deleting").build();
-    }
-    // Need to get the RepairUnit before it's possibly deleted.
-    Optional<RepairUnit> unitPossiblyDeleted =
-        context.storage.getRepairUnit(runToDelete.get().getRepairUnitId());
-    int segmentsRepaired =
-        context.storage.getSegmentAmountForRepairRunWithState(runId, RepairSegment.State.DONE);
-    Optional<RepairRun> deletedRun = context.storage.deleteRepairRun(runId);
-    if (deletedRun.isPresent()) {
-      RepairRunStatus repairRunStatus =
-          new RepairRunStatus(deletedRun.get(), unitPossiblyDeleted.get(), segmentsRepaired);
-      return Response.ok().entity(repairRunStatus).build();
-    }
-    return Response.serverError().entity("delete failed for repair run with id \""
-                                         + runId + "\"").build();
   }
 
 }

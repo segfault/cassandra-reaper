@@ -64,14 +64,6 @@ public interface IStorage {
 
   Collection<RepairRun> getRepairRunsWithState(RepairRun.RunState runState);
 
-  /**
-   * Delete the RepairRun instance identified by the given id, and delete also
-   * all the related repair segments.
-   *
-   * @param id The id of the RepairRun instance to delete, and all segments for it.
-   * @return The deleted RepairRun instance, if delete succeeds, with state set to DELETED.
-   */
-  Optional<RepairRun> deleteRepairRun(long id);
 
   RepairUnit addRepairUnit(RepairUnit.Builder newRepairUnit);
 
@@ -117,15 +109,6 @@ public interface IStorage {
   Collection<RepairSchedule> getAllRepairSchedules();
 
   boolean updateRepairSchedule(RepairSchedule newRepairSchedule);
-
-  /**
-   * Delete the RepairSchedule instance identified by the given id. Related repair runs
-   * or other resources tied to the schedule will not be deleted.
-   *
-   * @param id The id of the RepairSchedule instance to delete.
-   * @return The deleted RepairSchedule instance, if delete succeeds, with state set to DELETED.
-   */
-  Optional<RepairSchedule> deleteRepairSchedule(long id);
 
   @NotNull
   Collection<RepairRunStatus> getClusterRunStatuses(String clusterName, int limit);

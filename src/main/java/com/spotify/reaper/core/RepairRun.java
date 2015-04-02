@@ -140,7 +140,7 @@ public class RepairRun implements Comparable<RepairRun> {
     ERROR,
     DONE,
     PAUSED,
-    DELETED
+    ABORTED
   }
 
   public static class Builder {

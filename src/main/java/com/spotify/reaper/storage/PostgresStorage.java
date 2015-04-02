@@ -190,57 +190,6 @@ public class PostgresStorage implements IStorage {
   }
 
   @Override
-  public Optional<RepairRun> deleteRepairRun(long id) {
-    RepairRun result = null;
-    Handle h = null;
-    try {
-      h = jdbi.open();
-      h.begin();
-      IStoragePostgreSQL pg = getPostgresStorage(h);
-      RepairRun runToDelete = pg.getRepairRun(id);
-      if (runToDelete != null) {
-        int segmentsRunning = pg.getSegmentAmountForRepairRunWithState(id,
-            RepairSegment.State.RUNNING);
-        if (segmentsRunning == 0) {
-          pg.deleteRepairSegmentsForRun(runToDelete.getId());
-          pg.deleteRepairRun(id);
-          result = runToDelete.with().runState(RepairRun.RunState.DELETED).build(id);
-        } else {
-          LOG.warn("not deleting RepairRun \"{}\" as it has segments running: {}",
-                   id, segmentsRunning);
-        }
-      }
-      h.commit();
-    } catch (DBIException ex) {
-      LOG.warn("DELETE failed", ex);
-      ex.printStackTrace();
-      if (h != null) {
-        h.rollback();
-      }
-    } finally {
-      if (h != null) {
-        h.close();
-      }
-    }
-    if (result != null) {
-      tryDeletingRepairUnit(result.getRepairUnitId());
-    }
-    return Optional.fromNullable(result);
-  }
-
-  private void tryDeletingRepairUnit(long id) {
-    Handle h = jdbi.open();
-    try {
-      IStoragePostgreSQL pg = getPostgresStorage(jdbi.open());
-      pg.deleteRepairUnit(id);
-    } catch (DBIException ex) {
-      LOG.info("cannot delete RepairUnit with id " + id);
-    } finally {
-      h.close();
-    }
-  }
-
-  @Override
   public RepairRun addRepairRun(RepairRun.Builder newRepairRun) {
     RepairRun result;
     try (Handle h = jdbi.open()) {
@@ -436,25 +385,6 @@ public class PostgresStorage implements IStorage {
       }
     }
     return result;
-  }
-
-  @Override
-  public Optional<RepairSchedule> deleteRepairSchedule(long id) {
-    RepairSchedule result = null;
-    try (Handle h = jdbi.open()) {
-      IStoragePostgreSQL pg = getPostgresStorage(h);
-      RepairSchedule scheduleToDel = pg.getRepairSchedule(id);
-      if (scheduleToDel != null) {
-        int rowsDeleted = pg.deleteRepairSchedule(scheduleToDel.getId());
-        if (rowsDeleted > 0) {
-          result = scheduleToDel.with().state(RepairSchedule.State.DELETED).build(id);
-        }
-      }
-    }
-    if (result != null) {
-      tryDeletingRepairUnit(result.getRepairUnitId());
-    }
-    return Optional.fromNullable(result);
   }
 
   public Collection<RepairRunStatus> getClusterRunStatuses(String clusterName, int limit) {

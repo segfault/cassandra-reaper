@@ -152,59 +152,6 @@ public class MemoryStorage implements IStorage {
     return foundRepairRuns;
   }
 
-  /**
-   * Delete a RepairUnit instance from Storage, but only if no run or schedule is referencing it.
-   *
-   * @param repairUnitId The RepairUnit instance id to delete.
-   * @return The deleted RepairUnit instance, if delete succeeded.
-   */
-  private Optional<RepairUnit> deleteRepairUnit(long repairUnitId) {
-    RepairUnit deletedUnit = null;
-    boolean canDelete = true;
-    for (RepairRun repairRun : repairRuns.values()) {
-      if (repairRun.getRepairUnitId() == repairUnitId) {
-        canDelete = false;
-        break;
-      }
-    }
-    if (canDelete) {
-      for (RepairSchedule schedule : repairSchedules.values()) {
-        if (schedule.getRepairUnitId() == repairUnitId) {
-          canDelete = false;
-          break;
-        }
-      }
-    }
-    if (canDelete) {
-      deletedUnit = repairUnits.remove(repairUnitId);
-      repairUnitsByKey.remove(new RepairUnitKey(deletedUnit));
-    }
-    return Optional.fromNullable(deletedUnit);
-  }
-
-  private int deleteRepairSegmentsForRun(long runId) {
-    Map<Long, RepairSegment> segmentsMap = repairSegmentsByRunId.remove(runId);
-    if (null != segmentsMap) {
-      for (RepairSegment segment : segmentsMap.values()) {
-        repairSegments.remove(segment.getId());
-      }
-    }
-    return segmentsMap != null ? segmentsMap.size() : 0;
-  }
-
-  @Override
-  public Optional<RepairRun> deleteRepairRun(long id) {
-    RepairRun deletedRun = repairRuns.remove(id);
-    if (deletedRun != null) {
-      if (getSegmentAmountForRepairRunWithState(id, RepairSegment.State.RUNNING) == 0) {
-        deleteRepairUnit(deletedRun.getRepairUnitId());
-        deleteRepairSegmentsForRun(id);
-        deletedRun = deletedRun.with().runState(RepairRun.RunState.DELETED).build(id);
-      }
-    }
-    return Optional.fromNullable(deletedRun);
-  }
-
   @Override
   public RepairUnit addRepairUnit(RepairUnit.Builder repairUnit) {
     Optional<RepairUnit> existing =
@@ -367,15 +314,6 @@ public class MemoryStorage implements IStorage {
       repairSchedules.put(newRepairSchedule.getId(), newRepairSchedule);
       return true;
     }
-  }
-
-  @Override
-  public Optional<RepairSchedule> deleteRepairSchedule(long id) {
-    RepairSchedule deletedSchedule = repairSchedules.remove(id);
-    if (deletedSchedule != null) {
-      deletedSchedule = deletedSchedule.with().state(RepairSchedule.State.DELETED).build(id);
-    }
-    return Optional.fromNullable(deletedSchedule);
   }
 
   @Override
